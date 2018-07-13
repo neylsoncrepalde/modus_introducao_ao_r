@@ -88,17 +88,45 @@ cor(x, y)
 # Correlacionando Idade e renda
 cor(pnad$V8005, pnad$V4720, use = "complete.obs")
 cor.test(pnad$V8005, pnad$V4720, use = "complete.obs")
-options(scipen = 999)
+#options(scipen = 999)
 
 # Cruzar uma variável categórica e uma numérica
 # Sexo e Renda
-#t.test(pnad$V4720, pnad$V0302) # Corrigir
+# Tem que tirar os NA's primeiro senão não funciona!
+
+# No comando t.test, usamos o ~ para indicar as médias pelos grupos da variável à direita
+t.test(pnad$V4720 ~ pnad$V0302)
+
+# Só que esse resultado é viesado pois estamos calculando as médias sem levar em conta
+# os pesos amostrais. Para isso, vamos utilizar o pacote survey
+
+#install.packages("survey") # para instalar, descomente esta linha ;)
+library(survey)
+pnad_com_peso = svydesign(ids = ~0, weights = ~V4729, data = pnad)
+svyttest(V4720 ~ V0302, pnad_com_peso)       # calcula a diferença e testa
+svyby(~V4720, ~V0302, pnad_com_peso, svymean, na.rm = T)  # Verifica as médias por grupo
+
+
+##### Fazendo a mesmíssima coisa com o pacote srvyr que possui integração com dplyr e tidyverse
+#install.packages("srvyr")
+library(srvyr)
+pnad_srvyr = pnad %>% as_survey_design(ids = 1, weights = V4729)
+pnad_srvyr %>% group_by(V0302) %>% 
+  summarise(media = survey_mean(V4720, na.rm = T)) # Calcula a média por grupos
+# usando survey pra calcular a diferença e testar em cima de um objeto srvyr
+svyttest(V4720 ~ V0302, pnad_srvyr)  # ;)
 
 
 
+### Agora vamos testar a associação entre duas variáveis categóricas
+# Fazemos uma tabela cruzada e rodamos um teste qui-quadrado (chi square)
+tabela = table(pnad$V0404, pnad$V0302)
+chisq.test(tabela)
 
 
+## Agora levando em conta os pesos amostrais
+svytable(~V0404+V0302, pnad_srvyr)
+svychisq(~V0404+V0302, pnad_srvyr)
 
-
-
-
+# Tabela de proporções levando em conta o peso
+prop.table(svytable(~V0404+V0302, pnad_srvyr), 2) * 100
